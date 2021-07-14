@@ -1,0 +1,91 @@
+= Parser de mini-langage de recherche
+
+*Status :* _Experimental_
+
+== Objectif et contexte
+
+L'objectif est de fournir un langage de recherche simplifié pour l'utilisateur.
+Un langage plus simple à appréhender et sur lequel l'utilisateur à pleinement la main, indépendamment du langage de requete d'ElasticSearch.
+
+== Présentation du mini-langage
+
+Le mini-langage est représenté sous la forme de termes et d'opérateurs. Un terme peut être un mot simple `martin` ou `facture` ou une phrase encadrée par des guillemets `"facture martin"` qui cherchera alors tous les mots de la phrase dans le même ordre.
+
+=== Je cherche quoi ?
+La recherche s'effectue sur tous les champs recherchables d'un document.
+
+Il peut parfois avoir plus de sens de préciser le champ du document sur lequel la recherche doit opérer. Dans ce cas, le champ est utilisé en préfixe de la recherche.
+
+Par exemple : `nom:martin type:facture` recherche `martin`seulement dans le champ `nom`, ainsi que `facture` seulement dans le champ `type`.
+
+=== Comme-ci ou comme-ça ?
+
+Une recherche est possible avec plusieurs termes. Sans opérateur, une recherche pour `martin facture décembre` cherchera tous les documents qui contiennent soit `martin`, soit `facture` soit `décembre`.
+
+
+
+Il est possible de donner plus de controle sur la recherche en indiquant quels opérateurs utiliser.
+
+Les opérateurs `ET` et `OU` et `-` sont utilisable a cet effet.
+
+Quelques exemple :
+
+* `jean dupont` : tous les documents contiennent soit `jean` soit `dupont`. Equivalent à l'opérateur `OR`.
+* `jean OU dupont` : tous les documents contiennent soit `jean` soit `dupont`. Les deux doivent être présents.
+* `jean ET dupont` : tous les documents contiennent `jean` et `dupont`.
+* `jean -dupont` : tous les documents contiennent `jean` et pas `dupont`.
+
+[TIP]
+.`OU` ou `ET`?
+====
+Par défaut, c'est bien un `ET` qui sera réalisé. La présence des 2 termes augmentera le "score" du résultat et affichera donc bien en priorité les documents dans lequels les 2 termes sont présents. Les documents où seulement un seul des deux termes sera présent seront plus loin dans les résultats de recherche.
+====
+
+Aucune précédence des opérateurs n'est mise en place. Si l'utilisateur souhaite combiner des opérations, alors il doit explicitement les grouper avec des `()`.
+
+Par exemple, `nom:(dupont OU dupond) ET type:facture`
+ou `(dupont OU dupond) ET (durand OU durant) ET !martin`
+
+=== Pas sûr de l'orthographe ? ===
+Les recherches sont réalisées de manière stricte. C'est-à-dire que les mots sont recherchés _tel quel_, en supposant que l'orthographe est correcte.
+
+Si l'orthographe d'un terme n'est pas sûr, il est possible de l'indiquer en suffixant un terme avec `~`.
+
+Pour les mots de moins de 3 caractères : l'approximation n'aura aucun effet.
+Pour les mots entre 3 et 5 caractères : 1 erreur est possible
+Pour les mots de 6 caractères et plus : 2 erreurs sont possibles.
+
+Par exemple : `dupont~` pourra être utilisé pour trouver `dupond` mais également `durant`.
+
+=== Je sais que ça commence par ...
+Comme la recherche approximative, il est possible de suffixer un terme avec `*` pour indiquer qu'il _commence par_ une valeur.
+
+Par exemple, `dupon*` pourra être utilisé pour trouver `dupont`, `dupond`, mais également `dupontel`.
+
+TIP : Il n'est pas possible d'utiliser l'opérateur `*` en début et milieu de mot. Si l'utilisateur n'est pas sûr de l'orthographe : il est conseillé d'utiliser l'opérateur d'approximation `~`.
+
+=== Plus grand ou plus petit ?
+Certains champs sont adaptés à la recherche comparative.
+Il est possible d'utiliser les opérateurs `>`, `>=`, `<` et `\<=` pour préciser des valeurs _strictement plus grandes_, _plus grandes ou égales_, _strictement inférieures_ et _inférieures ou égales_.
+
+TIP : étant donné que seuls certains champs sont applicables a recherche comparative, les termes doivent donc être préfixés par leur champs pour être utilisés avec ces opérateurs.
+
+Par exemple : `annee:>2019` ou `date_creation:(>2020-01-01 ET \<=2020-06-31)`
+
+
+== Techniquement
+
+En vrac :
+
+* Les recherches types Wildcard (`\*` et `?`) ne sont pas possibles en milieu de mot et _surtout pas_ en début de mot pour des raisons de performances. ES ne préconise pas l'utilisation de ces requêtes (notamment les `*` en début de terme) car ce sont des requêtes très couteuses et peu performantes. Il est préférable d'orienter l'utilisateur vers des recherches approximatives.
+* Les recherches approximatives sont volontairement _bridées_ avec les règles indiquées ci-dessus. Cette règle permet de répondre à la majorité des cas (1 approximation permet déjà de trouver 80% des erreurs humaines)
+* Il n'est pas possible de mixer `~` et `*` (la syntaxe n'est volontairement pas valide). Un message d'erreur l'indiquera explicitement à l'utilisateur.
+* les opérateurs de boost sont supprimés car il est peu probable que l'utilisateur final ne l'utilise dans notre contexte.
+* les opérateurs d'interval (`A..B`, `[A TO B}`, ...) sont exclus car ils sont représentables via les opérateurd de comparaison et `ET`. par exemple via `annee:(>1900 ET <2000)`.
+
+
+== Ressources
+
+* https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html
+* https://tomassetti.me/antlr-mega-tutorial/
+* https://lucene.apache.org/core/2_9_4/queryparsersyntax.html
