@@ -37,7 +37,13 @@ class MinilangPrinter : MinilangBaseVisitor<String>() {
     
     override fun visitFieldedExpr(ctx: FieldedExprContext?) : String {
         if(ctx!!.fieldedQuery() != null) {
-            return visit(ctx.fieldedQuery().id()) + ":" + visit(ctx.fieldedQuery().subTerm())
+            if(ctx.fieldedQuery().subTerm() != null) {
+                return visit(ctx.fieldedQuery().id()) + ":" + visit(ctx.fieldedQuery().subTerm())    
+            } else if (ctx.fieldedQuery().subQuery() != null) {
+                return visit(ctx.fieldedQuery().id()) + ":(" + visit(ctx.fieldedQuery().subQuery()) + ")"
+            } else {
+                // une erreur de syntaxe sera levée
+            }
         } else {
             // la subquery peut être nulle, si la syntaxe n'est pas respéctée.
             if(ctx.fieldedQuery().subQuery() != null)

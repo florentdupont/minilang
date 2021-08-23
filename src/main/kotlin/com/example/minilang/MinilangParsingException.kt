@@ -11,5 +11,4 @@ import java.lang.RuntimeException
 class MinilangParsingException(val expectedToken:String, recognizer: Recognizer<*, *>, input: IntStream, ctx: ParserRuleContext)
            : RecognitionException(recognizer, input, ctx) {
 
-
 }
